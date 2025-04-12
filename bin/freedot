@@ -28,19 +28,19 @@ if [[ "$1" == "self-update" ]]; then
         exit 1
     }
 
-    # Extract remote version
     remote_version=$(grep -E '^version=' "$REMOTE_SCRIPT" | cut -d= -f2 | tr -d '"')
+
     if [[ "$remote_version" == "$version" ]]; then
-        echo "✅ Already running the latest version: $version"
+        echo "✅ Already running the latest version: v$version"
         rm -rf "$TEMP_DIR"
         exit 0
     fi
 
-    echo "🔄 Updating freedot from v$version to v$remote_version..."
+    echo "⬆️  Updating freedot from v$version to v$remote_version..."
 
-    curl -sSfLo "$TEMP_DIR/freedot.bash" https://raw.githubusercontent.com/samsonzone/freedot-cli/main/completions/freedot.bash
-    curl -sSfLo "$TEMP_DIR/_freedot" https://raw.githubusercontent.com/samsonzone/freedot-cli/main/completions/_freedot
-    curl -sSfLo "$TEMP_DIR/freedot.1" https://raw.githubusercontent.com/samsonzone/freedot-cli/main/man/freedot.1
+    curl -sSfLo "$TEMP_DIR/freedot.bash" https://raw.githubusercontent.com/samsonzone/freedot-cli/main/completions/freedot.bash"
+    curl -sSfLo "$TEMP_DIR/_freedot" https://raw.githubusercontent.com/samsonzone/freedot-cli/main/completions/_freedot"
+    curl -sSfLo "$TEMP_DIR/freedot.1" https://raw.githubusercontent.com/samsonzone/freedot-cli/main/man/freedot.1"
 
     sudo cp "$REMOTE_SCRIPT" /usr/local/bin/freedot && sudo chmod +x /usr/local/bin/freedot
     sudo cp "$TEMP_DIR/freedot.bash" /etc/bash_completion.d/freedot 2>/dev/null || true
@@ -48,7 +48,7 @@ if [[ "$1" == "self-update" ]]; then
     sudo cp "$TEMP_DIR/freedot.1" /usr/share/man/man1/freedot.1 2>/dev/null || true
 
     rm -rf "$TEMP_DIR"
-    echo "✅ freedot updated to v$remote_version"
+    echo "✅ freedot successfully updated to v$remote_version"
     exit 0
 fi
 
