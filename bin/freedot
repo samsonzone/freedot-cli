@@ -1,4 +1,17 @@
 #!/bin/bash
+# ------------------------------------------------------------------------------
+# freedot - Domain Availability Checker CLI Tool
+#
+# Author: Brian Samson (@samsonzone)
+# License: MIT
+# Created: 2025
+# Repository: https://github.com/samsonzone/freedot-cli
+#
+# Description:
+#   Check domain availability across TLDs using WHOIS and DNS.
+#   Supports filters (category, TLD length), progress bars, export formats, and
+#   Linux/macOS compatibility with autocompletion and man page.
+# ------------------------------------------------------------------------------
 
 domain_base=""
 category_filter=""
@@ -84,11 +97,12 @@ if $show_help; then
     echo "  -o, --output-format <format>   Export results to file (json, csv, yaml, toml)"
     echo "  -h, --help                      Show this help message and exit"
     echo "  --install-deps                 Install whois, dig, and timeout for Linux"
+    echo "  --version                      Show tool version"
     echo ""
     echo "Examples:"
     echo "  $0 mysite"
     echo "  $0 mysite -c general"
-    echo "  $0 mysite -x "<=3" -o json"
+    echo "  $0 mysite -x \"<=3\" -o json"
     echo "  $0 --list"
     exit 0
 fi
@@ -149,10 +163,10 @@ while IFS=',' read -r tld usage; do
 
     # TLD length filter
     if [ -n "$length_filter" ]; then
-        if [[ "$length_filter" =~ ^\<\=([0-9]+)$ ]]; then
+        if [[ "$length_filter" =~ ^<=([0-9]+)$ ]]; then
             max=${BASH_REMATCH[1]}
             (( tld_length > max )) && continue
-        elif [[ "$length_filter" =~ ^\>\=([0-9]+)$ ]]; then
+        elif [[ "$length_filter" =~ ^>=([0-9]+)$ ]]; then
             min=${BASH_REMATCH[1]}
             (( tld_length < min )) && continue
         elif [[ "$length_filter" =~ ^([0-9]+)$ ]]; then
@@ -160,7 +174,7 @@ while IFS=',' read -r tld usage; do
             (( tld_length != exact )) && continue
         else
             echo "Invalid length filter: $length_filter"
-            echo "Use formats: N, "<=N", or ">=N""
+            echo "Use formats: N, \"<=N\", or \">=N\""
             exit 1
         fi
     fi
