@@ -12,8 +12,11 @@ endif
 
 install:
 	install -m 755 bin/freedot /usr/local/bin/freedot
+	install -d $(BASH_COMPLETION_DIR)
 	install -m 644 completions/freedot.bash $(BASH_COMPLETION_DIR)/freedot
+	install -d $(ZSH_COMPLETION_DIR)
 	install -m 644 completions/_freedot $(ZSH_COMPLETION_DIR)/_freedot
+	install -d $(MAN_DIR)
 	install -m 644 man/freedot.1 $(MAN_DIR)/freedot.1
 
 uninstall:
