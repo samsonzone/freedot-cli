@@ -146,3 +146,19 @@ MIT
 ## 🧑‍💻 Author
 
 Made with ☕ and domain dreams by [@samsonzone](https://github.com/samsonzone)
+
+---
+
+## 🔄 Self-Update
+
+To get the latest version of `freedot`, just run:
+
+```bash
+freedot self-update
+```
+
+This will:
+
+- Download the latest script from GitHub
+- Update `/usr/local/bin/freedot`, completions, and man page
+- Confirm the version automatically

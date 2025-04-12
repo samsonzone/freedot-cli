@@ -10,6 +10,13 @@ install_deps=false
 version="1.0.2"
 
 
+# --- Download ext.txt from GitHub ---
+EXT_FILE_URL="https://raw.githubusercontent.com/samsonzone/freedot-cli/main/ref/ext.txt"
+EXT_FILE="$(mktemp)"
+curl -sSfL "$EXT_FILE_URL" -o "$EXT_FILE" || {
+    echo "Error: Failed to download ext.txt from GitHub."
+    exit 1
+}
 # Handle self-update
 if [[ "$1" == "self-update" ]]; then
     echo "🔄 Updating freedot from GitHub..."
@@ -78,7 +85,6 @@ while [[ $# -gt 0 ]]; do
 done
 
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-EXT_FILE="$SCRIPT_DIR/ext.txt"
 
 # --- Install Dependencies (Linux Only) ---
 if $install_deps; then
@@ -112,6 +118,7 @@ if $show_help; then
     echo "  $0 mysite -c general"
     echo "  $0 mysite -x "<=3" -o json"
     echo "  $0 --list"
+    echo "  self-update                    Update freedot from the GitHub repo"
     exit 0
 fi
 

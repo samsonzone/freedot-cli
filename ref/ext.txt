@@ -1,0 +1,9 @@
+tld,usage
+com,general
+net,general
+org,general
+dev,tech
+io,tech
+ai,tech
+us,geo
+uk,geo
