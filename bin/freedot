@@ -158,16 +158,16 @@ while IFS=',' read -r tld usage; do
 
     tld_length=${#tld}
 
-    # TLD length filter
+    # TLD length filter (Bash-compatible, no regex)
     if [ -n "$length_filter" ]; then
-        if [[ "$length_filter" =~ ^<=([0-9]+)$ ]]; then
-            max=${BASH_REMATCH[1]}
+        if [[ "$length_filter" == \<=* ]]; then
+            max="${length_filter#<=}"
             (( tld_length > max )) && continue
-        elif [[ "$length_filter" =~ ^>=([0-9]+)$ ]]; then
-            min=${BASH_REMATCH[1]}
+        elif [[ "$length_filter" == \>=* ]]; then
+            min="${length_filter#>=}"
             (( tld_length < min )) && continue
-        elif [[ "$length_filter" =~ ^([0-9]+)$ ]]; then
-            exact=${BASH_REMATCH[1]}
+        elif [[ "$length_filter" =~ ^[0-9]+$ ]]; then
+            exact="$length_filter"
             (( tld_length != exact )) && continue
         else
             echo "Invalid length filter: $length_filter"
@@ -280,65 +280,6 @@ if [ ${#errors[@]} -gt 0 ]; then
     for domain in "${errors[@]}"; do
         echo "$domain"
     done
-fi
-
-# --- Export output if specified ---
-if [ -n "$output_format" ]; then
-    outfile="${domain_base}.${output_format}"
-    case "$output_format" in
-        json)
-            {
-                echo "{"
-                echo '  "available": ['
-                for i in "${!available_domains[@]}"; do
-                    printf '    "%s"%s\n' "${available_domains[$i]}" "$( [ $i -lt $((${#available_domains[@]} - 1)) ] && echo "," )"
-                done
-                echo "  ],"
-                echo '  "registered": ['
-                for i in "${!registered_domains[@]}"; do
-                    printf '    "%s"%s\n' "${registered_domains[$i]}" "$( [ $i -lt $((${#registered_domains[@]} - 1)) ] && echo "," )"
-                done
-                echo "  ],"
-                echo '  "errors": ['
-                for i in "${!errors[@]}"; do
-                    printf '    "%s"%s\n' "${errors[$i]}" "$( [ $i -lt $((${#errors[@]} - 1)) ] && echo "," )"
-                done
-                echo "  ]"
-                echo "}"
-            } > "$outfile"
-            ;;
-        csv)
-            {
-                echo "status,domain"
-                for domain in "${available_domains[@]}"; do echo "available,$domain"; done
-                for domain in "${registered_domains[@]}"; do echo "registered,$domain"; done
-                for domain in "${errors[@]}"; do echo "error,$domain"; done
-            } > "$outfile"
-            ;;
-        yaml)
-            {
-                echo "available:"
-                for domain in "${available_domains[@]}"; do echo "  - \"$domain\""; done
-                echo "registered:"
-                for domain in "${registered_domains[@]}"; do echo "  - \"$domain\""; done
-                echo "errors:"
-                for domain in "${errors[@]}"; do echo "  - \"$domain\""; done
-            } > "$outfile"
-            ;;
-        toml)
-            {
-                echo "[available]"
-                for i in "${!available_domains[@]}"; do echo "d$i = \"${available_domains[$i]}\""; done
-                echo
-                echo "[registered]"
-                for i in "${!registered_domains[@]}"; do echo "d$i = \"${registered_domains[$i]}\""; done
-                echo
-                echo "[errors]"
-                for i in "${!errors[@]}"; do echo "d$i = \"${errors[$i]}\""; done
-            } > "$outfile"
-            ;;
-    esac
-    echo -e "\nResults exported to: $outfile"
 fi
 
 # --- Clean up ---
