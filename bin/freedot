@@ -19,23 +19,36 @@ curl -sSfL "$EXT_FILE_URL" -o "$EXT_FILE" || {
 
 # Handle self-update
 if [[ "$1" == "self-update" ]]; then
-    echo "🔄 Updating freedot from GitHub..."
+    echo "🔍 Checking for updates..."
+
     TEMP_DIR=$(mktemp -d)
-    curl -sSfLo "$TEMP_DIR/freedot" https://raw.githubusercontent.com/samsonzone/freedot-cli/main/bin/freedot || {
-        echo "❌ Failed to download freedot script"
+    REMOTE_SCRIPT="$TEMP_DIR/freedot"
+    curl -sSfLo "$REMOTE_SCRIPT" https://raw.githubusercontent.com/samsonzone/freedot-cli/main/bin/freedot || {
+        echo "❌ Failed to download remote script"
         exit 1
     }
+
+    # Extract remote version
+    remote_version=$(grep -E '^version=' "$REMOTE_SCRIPT" | cut -d= -f2 | tr -d '"')
+    if [[ "$remote_version" == "$version" ]]; then
+        echo "✅ Already running the latest version: $version"
+        rm -rf "$TEMP_DIR"
+        exit 0
+    fi
+
+    echo "🔄 Updating freedot from v$version to v$remote_version..."
+
     curl -sSfLo "$TEMP_DIR/freedot.bash" https://raw.githubusercontent.com/samsonzone/freedot-cli/main/completions/freedot.bash
     curl -sSfLo "$TEMP_DIR/_freedot" https://raw.githubusercontent.com/samsonzone/freedot-cli/main/completions/_freedot
     curl -sSfLo "$TEMP_DIR/freedot.1" https://raw.githubusercontent.com/samsonzone/freedot-cli/main/man/freedot.1
 
-    sudo cp "$TEMP_DIR/freedot" /usr/local/bin/freedot && sudo chmod +x /usr/local/bin/freedot
+    sudo cp "$REMOTE_SCRIPT" /usr/local/bin/freedot && sudo chmod +x /usr/local/bin/freedot
     sudo cp "$TEMP_DIR/freedot.bash" /etc/bash_completion.d/freedot 2>/dev/null || true
     sudo cp "$TEMP_DIR/_freedot" /usr/local/share/zsh/site-functions/_freedot 2>/dev/null || true
     sudo cp "$TEMP_DIR/freedot.1" /usr/share/man/man1/freedot.1 2>/dev/null || true
 
     rm -rf "$TEMP_DIR"
-    echo "✅ freedot updated to $(freedot --version)"
+    echo "✅ freedot updated to v$remote_version"
     exit 0
 fi
 
