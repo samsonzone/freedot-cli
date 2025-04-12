@@ -1,12 +1,4 @@
 #!/bin/bash
-# ------------------------------------------------------------------------------
-# freedot - Domain Availability Checker CLI Tool
-#
-# Author: Brian Samson (@samsonzone)
-# License: MIT
-# Created: 2025
-# Repository: https://github.com/samsonzone/freedot-cli
-# ------------------------------------------------------------------------------
 
 domain_base=""
 category_filter=""
@@ -15,8 +7,30 @@ show_list=false
 show_help=false
 output_format=""
 install_deps=false
-version="1.0.0"
+version="1.0.2"
 
+
+# Handle self-update
+if [[ "$1" == "self-update" ]]; then
+    echo "🔄 Updating freedot from GitHub..."
+    TEMP_DIR=$(mktemp -d)
+    curl -sSfLo "$TEMP_DIR/freedot" https://raw.githubusercontent.com/samsonzone/freedot-cli/main/bin/freedot || {
+        echo "❌ Failed to download freedot script"
+        exit 1
+    }
+    curl -sSfLo "$TEMP_DIR/freedot.bash" https://raw.githubusercontent.com/samsonzone/freedot-cli/main/completions/freedot.bash
+    curl -sSfLo "$TEMP_DIR/_freedot" https://raw.githubusercontent.com/samsonzone/freedot-cli/main/completions/_freedot
+    curl -sSfLo "$TEMP_DIR/freedot.1" https://raw.githubusercontent.com/samsonzone/freedot-cli/main/man/freedot.1
+
+    sudo cp "$TEMP_DIR/freedot" /usr/local/bin/freedot && sudo chmod +x /usr/local/bin/freedot
+    sudo cp "$TEMP_DIR/freedot.bash" /etc/bash_completion.d/freedot 2>/dev/null || true
+    sudo cp "$TEMP_DIR/_freedot" /usr/local/share/zsh/site-functions/_freedot 2>/dev/null || true
+    sudo cp "$TEMP_DIR/freedot.1" /usr/share/man/man1/freedot.1 2>/dev/null || true
+
+    rm -rf "$TEMP_DIR"
+    echo "✅ freedot updated to $(freedot --version)"
+    exit 0
+fi
 # Handle --version early
 if [[ "$1" == "--version" ]]; then
     echo "freedot version $version"
@@ -63,14 +77,8 @@ while [[ $# -gt 0 ]]; do
     shift
 done
 
-# --- Download ext.txt from GitHub ---
-EXT_FILE_URL="https://raw.githubusercontent.com/samsonzone/freedot-cli/main/ref/ext.txt"
-EXT_FILE="$(mktemp)"
-
-curl -sSfL "$EXT_FILE_URL" -o "$EXT_FILE" || {
-    echo "Error: Failed to download ext.txt from GitHub."
-    exit 1
-}
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+EXT_FILE="$SCRIPT_DIR/ext.txt"
 
 # --- Install Dependencies (Linux Only) ---
 if $install_deps; then
@@ -98,14 +106,12 @@ if $show_help; then
     echo "  -o, --output-format <format>   Export results to file (json, csv, yaml, toml)"
     echo "  -h, --help                      Show this help message and exit"
     echo "  --install-deps                 Install whois, dig, and timeout for Linux"
-    echo "  --version                      Show tool version"
     echo ""
     echo "Examples:"
     echo "  $0 mysite"
     echo "  $0 mysite -c general"
-    echo "  $0 mysite -x \"<=3\" -o json"
+    echo "  $0 mysite -x "<=3" -o json"
     echo "  $0 --list"
-    rm -f "$EXT_FILE"
     exit 0
 fi
 
@@ -113,16 +119,18 @@ fi
 if [ -n "$output_format" ]; then
     if [[ ! "$output_format" =~ ^(json|csv|yaml|toml)$ ]]; then
         echo "Error: Invalid output format. Choose from: json, csv, yaml, toml"
-        rm -f "$EXT_FILE"
         exit 1
     fi
 fi
 
 # --- Show list of categories and exit ---
 if $show_list; then
+    if [ ! -f "$EXT_FILE" ]; then
+        echo "Error: $EXT_FILE not found."
+        exit 1
+    fi
     echo "Available TLD usage categories:"
     tail -n +2 "$EXT_FILE" | awk -F',' 'tolower($2) != "" { gsub(/ /, "", $2); print tolower($2) }' | sort -u
-    rm -f "$EXT_FILE"
     exit 0
 fi
 
@@ -130,7 +138,11 @@ fi
 if [ -z "$domain_base" ]; then
     echo "Error: Missing domain_base."
     echo "Use -h or --help for usage."
-    rm -f "$EXT_FILE"
+    exit 1
+fi
+
+if [ ! -f "$EXT_FILE" ]; then
+    echo "Error: $EXT_FILE not found."
     exit 1
 fi
 
@@ -141,7 +153,6 @@ elif command -v gtimeout >/dev/null 2>&1; then
     TIMEOUT_CMD="gtimeout"
 else
     echo "Error: timeout or gtimeout not found. On macOS, run: brew install coreutils"
-    rm -f "$EXT_FILE"
     exit 1
 fi
 
@@ -158,21 +169,20 @@ while IFS=',' read -r tld usage; do
 
     tld_length=${#tld}
 
-    # TLD length filter (Bash-compatible, no regex)
+    # TLD length filter
     if [ -n "$length_filter" ]; then
-        if [[ "$length_filter" == \<=* ]]; then
-            max="${length_filter#<=}"
+        if [[ "$length_filter" =~ ^\<\=([0-9]+)$ ]]; then
+            max=${BASH_REMATCH[1]}
             (( tld_length > max )) && continue
-        elif [[ "$length_filter" == \>=* ]]; then
-            min="${length_filter#>=}"
+        elif [[ "$length_filter" =~ ^\>\=([0-9]+)$ ]]; then
+            min=${BASH_REMATCH[1]}
             (( tld_length < min )) && continue
-        elif [[ "$length_filter" =~ ^[0-9]+$ ]]; then
-            exact="$length_filter"
+        elif [[ "$length_filter" =~ ^([0-9]+)$ ]]; then
+            exact=${BASH_REMATCH[1]}
             (( tld_length != exact )) && continue
         else
             echo "Invalid length filter: $length_filter"
-            echo "Use formats: N, \"<=N\", or \">=N\""
-            rm -f "$EXT_FILE"
+            echo "Use formats: N, "<=N", or ">=N""
             exit 1
         fi
     fi
@@ -187,7 +197,6 @@ done < "$EXT_FILE"
 
 if [ ${#valid_tlds[@]} -eq 0 ]; then
     echo "No matching TLDs found."
-    rm -f "$EXT_FILE"
     exit 1
 fi
 
@@ -282,5 +291,61 @@ if [ ${#errors[@]} -gt 0 ]; then
     done
 fi
 
-# --- Clean up ---
-rm -f "$EXT_FILE"
+# --- Export output if specified ---
+if [ -n "$output_format" ]; then
+    outfile="${domain_base}.${output_format}"
+    case "$output_format" in
+        json)
+            {
+                echo "{"
+                echo '  "available": ['
+                for i in "${!available_domains[@]}"; do
+                    printf '    "%s"%s\n' "${available_domains[$i]}" "$( [ $i -lt $((${#available_domains[@]} - 1)) ] && echo "," )"
+                done
+                echo "  ],"
+                echo '  "registered": ['
+                for i in "${!registered_domains[@]}"; do
+                    printf '    "%s"%s\n' "${registered_domains[$i]}" "$( [ $i -lt $((${#registered_domains[@]} - 1)) ] && echo "," )"
+                done
+                echo "  ],"
+                echo '  "errors": ['
+                for i in "${!errors[@]}"; do
+                    printf '    "%s"%s\n' "${errors[$i]}" "$( [ $i -lt $((${#errors[@]} - 1)) ] && echo "," )"
+                done
+                echo "  ]"
+                echo "}"
+            } > "$outfile"
+            ;;
+        csv)
+            {
+                echo "status,domain"
+                for domain in "${available_domains[@]}"; do echo "available,$domain"; done
+                for domain in "${registered_domains[@]}"; do echo "registered,$domain"; done
+                for domain in "${errors[@]}"; do echo "error,$domain"; done
+            } > "$outfile"
+            ;;
+        yaml)
+            {
+                echo "available:"
+                for domain in "${available_domains[@]}"; do echo "  - \"$domain\""; done
+                echo "registered:"
+                for domain in "${registered_domains[@]}"; do echo "  - \"$domain\""; done
+                echo "errors:"
+                for domain in "${errors[@]}"; do echo "  - \"$domain\""; done
+            } > "$outfile"
+            ;;
+        toml)
+            {
+                echo "[available]"
+                for i in "${!available_domains[@]}"; do echo "d$i = \"${available_domains[$i]}\""; done
+                echo
+                echo "[registered]"
+                for i in "${!registered_domains[@]}"; do echo "d$i = \"${registered_domains[$i]}\""; done
+                echo
+                echo "[errors]"
+                for i in "${!errors[@]}"; do echo "d$i = \"${errors[$i]}\""; done
+            } > "$outfile"
+            ;;
+    esac
+    echo -e "\nResults exported to: $outfile"
+fi
