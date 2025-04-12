@@ -1,0 +1,42 @@
+.TH "freedot" "1" "2025-04-12" "freedot 1.0" "Domain Availability Checker"
+.SH NAME
+freedot \- check domain availability across TLDs
+.SH SYNOPSIS
+.B freedot
+.I domain_base
+[OPTIONS]
+.SH DESCRIPTION
+.B freedot
+is a command-line tool that checks the availability of domain names across various TLDs. It supports filtering by category and TLD length, and can export results in multiple formats.
+.SH OPTIONS
+.TP
+.BR -c ", " --category " <category>"
+Filter TLDs by category from ext.txt.
+.TP
+.BR -x ", " --tld-length " <n|<=n|>=n>"
+Filter TLDs by length. Wrap <= or >= in quotes.
+.TP
+.BR -o ", " --output-format " <format>"
+Export results to a file. Formats: json, yaml, csv, toml.
+.TP
+.BR -l ", " --list
+List all available categories in ext.txt.
+.TP
+.BR -h ", " --help
+Display this help message.
+.TP
+.BR --install-deps
+Install dependencies for Linux: whois, dig, timeout.
+.TP
+.BR --version
+Show version information.
+.SH EXAMPLES
+.B freedot mydomain -x "3" -c general -o json
+.br
+.B freedot --list
+.br
+.B freedot --install-deps
+.SH AUTHOR
+Written by you.
+.SH LICENSE
+MIT

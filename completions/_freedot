@@ -1,0 +1,10 @@
+#compdef freedot
+
+_arguments -s \
+  '-c[Filter by category]:category:_files' \
+  '-x[Filter TLD length (n|<=n|>=n)]' \
+  '-o[Output format (json, yaml, csv, toml)]:(json yaml csv toml)' \
+  '-l[List available categories]' \
+  '-h[Show help]' \
+  '--install-deps[Install Linux dependencies]' \
+  '--version[Show version]'

@@ -1,0 +1,329 @@
+#!/bin/bash
+
+domain_base=""
+category_filter=""
+length_filter=""
+show_list=false
+show_help=false
+output_format=""
+install_deps=false
+version="1.0.0"
+
+# Handle --version early
+if [[ "$1" == "--version" ]]; then
+    echo "freedot version $version"
+    exit 0
+fi
+
+# --- Parse args ---
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        -c|--category)
+            shift
+            category_filter="$1"
+            ;;
+        -x|--tld-length)
+            shift
+            length_filter="$1"
+            ;;
+        -l|--list)
+            show_list=true
+            ;;
+        -h|--help)
+            show_help=true
+            ;;
+        -o|--output-format)
+            shift
+            output_format="$1"
+            ;;
+        --install-deps)
+            install_deps=true
+            ;;
+        -*)
+            echo "Unknown option: $1"
+            exit 1
+            ;;
+        *)
+            if [ -z "$domain_base" ]; then
+                domain_base="$1"
+            else
+                echo "Unexpected argument: $1"
+                exit 1
+            fi
+            ;;
+    esac
+    shift
+done
+
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+EXT_FILE="$SCRIPT_DIR/ext.txt"
+
+# --- Install Dependencies (Linux Only) ---
+if $install_deps; then
+    echo "Installing dependencies..."
+    if command -v apt &>/dev/null; then
+        sudo apt update && sudo apt install -y whois dnsutils coreutils
+    elif command -v yum &>/dev/null; then
+        sudo yum install -y whois bind-utils coreutils
+    elif command -v dnf &>/dev/null; then
+        sudo dnf install -y whois bind-utils coreutils
+    else
+        echo "Unsupported package manager. Please install whois, dig, and coreutils manually."
+    fi
+    exit 0
+fi
+
+# --- Help message ---
+if $show_help; then
+    echo "Usage: $0 domain_base [options]"
+    echo ""
+    echo "Options:"
+    echo "  -c, --category <category>       Filter by category (from ext.txt CSV)"
+    echo "  -x, --tld-length <n|<=n|>=n>    Filter TLDs by length (wrap <= or >= in quotes)"
+    echo "  -l, --list                      List all available categories"
+    echo "  -o, --output-format <format>   Export results to file (json, csv, yaml, toml)"
+    echo "  -h, --help                      Show this help message and exit"
+    echo "  --install-deps                 Install whois, dig, and timeout for Linux"
+    echo ""
+    echo "Examples:"
+    echo "  $0 mysite"
+    echo "  $0 mysite -c general"
+    echo "  $0 mysite -x "<=3" -o json"
+    echo "  $0 --list"
+    exit 0
+fi
+
+# --- Validate output format ---
+if [ -n "$output_format" ]; then
+    if [[ ! "$output_format" =~ ^(json|csv|yaml|toml)$ ]]; then
+        echo "Error: Invalid output format. Choose from: json, csv, yaml, toml"
+        exit 1
+    fi
+fi
+
+# --- Show list of categories and exit ---
+if $show_list; then
+    if [ ! -f "$EXT_FILE" ]; then
+        echo "Error: $EXT_FILE not found."
+        exit 1
+    fi
+    echo "Available TLD usage categories:"
+    tail -n +2 "$EXT_FILE" | awk -F',' 'tolower($2) != "" { gsub(/ /, "", $2); print tolower($2) }' | sort -u
+    exit 0
+fi
+
+# --- Ensure domain was given ---
+if [ -z "$domain_base" ]; then
+    echo "Error: Missing domain_base."
+    echo "Use -h or --help for usage."
+    exit 1
+fi
+
+if [ ! -f "$EXT_FILE" ]; then
+    echo "Error: $EXT_FILE not found."
+    exit 1
+fi
+
+# --- Timeout fallback ---
+if command -v timeout >/dev/null 2>&1; then
+    TIMEOUT_CMD="timeout"
+elif command -v gtimeout >/dev/null 2>&1; then
+    TIMEOUT_CMD="gtimeout"
+else
+    echo "Error: timeout or gtimeout not found. On macOS, run: brew install coreutils"
+    exit 1
+fi
+
+available_domains=()
+registered_domains=()
+errors=()
+
+# --- Build TLD list from ext.txt ---
+valid_tlds=()
+while IFS=',' read -r tld usage; do
+    tld=$(echo "$tld" | tr -d '[:space:]')
+    usage=$(echo "$usage" | tr -d '[:space:]')
+    [[ "$tld" == "tld" || -z "$tld" ]] && continue
+
+    tld_length=${#tld}
+
+    # TLD length filter
+    if [ -n "$length_filter" ]; then
+        if [[ "$length_filter" =~ ^\<\=([0-9]+)$ ]]; then
+            max=${BASH_REMATCH[1]}
+            (( tld_length > max )) && continue
+        elif [[ "$length_filter" =~ ^\>\=([0-9]+)$ ]]; then
+            min=${BASH_REMATCH[1]}
+            (( tld_length < min )) && continue
+        elif [[ "$length_filter" =~ ^([0-9]+)$ ]]; then
+            exact=${BASH_REMATCH[1]}
+            (( tld_length != exact )) && continue
+        else
+            echo "Invalid length filter: $length_filter"
+            echo "Use formats: N, "<=N", or ">=N""
+            exit 1
+        fi
+    fi
+
+    # Category filter
+    if [ -n "$category_filter" ] && [ "$usage" != "$category_filter" ]; then
+        continue
+    fi
+
+    valid_tlds+=("$tld")
+done < "$EXT_FILE"
+
+if [ ${#valid_tlds[@]} -eq 0 ]; then
+    echo "No matching TLDs found."
+    exit 1
+fi
+
+total_tlds=${#valid_tlds[@]}
+current_index=0
+bar_length=30
+
+# ANSI Colors
+GREEN='\033[0;32m'
+GRAY='\033[0;90m'
+WHITE='\033[1;37m'
+RESET='\033[0m'
+
+draw_progress_bar() {
+    local progress=$1
+    local domain=$2
+    local filled=$(( progress * bar_length / 100 ))
+    local empty=$(( bar_length - filled ))
+
+    local bar="${GREEN}$(printf "%0.s#" $(seq 1 $filled))"
+    bar+="${GRAY}$(printf "%0.s-" $(seq 1 $empty))${RESET}"
+
+    printf "\r${bar} ${WHITE}%3d%%${RESET} | ${WHITE}Checking %s ...${RESET}\033[K" "$progress" "$domain"
+}
+
+# --- Main loop ---
+for tld in "${valid_tlds[@]}"; do
+    full_domain="${domain_base}.${tld}"
+    ((current_index++))
+    progress=$(( current_index * 100 / total_tlds ))
+    draw_progress_bar "$progress" "$full_domain"
+
+    whois_output=$($TIMEOUT_CMD 2 whois "$full_domain" 2>&1)
+    result_status=$?
+
+    if [ $result_status -eq 124 ]; then
+        registered_domains+=("$full_domain (time out)")
+        continue
+    elif echo "$whois_output" | grep -qiE "nodename nor servname provided|not known|connection timed out"; then
+        errors+=("$full_domain (whois error)")
+        continue
+    fi
+
+    if echo "$whois_output" | grep -qiE "Domain not found|No match for domain|not available for registration"; then
+        available_domains+=("$full_domain")
+        continue
+    fi
+
+    dig_output=$(dig +short NS "$full_domain" 2>/dev/null)
+    if [ -n "$dig_output" ]; then
+        registered_domains+=("$full_domain")
+    else
+        available_domains+=("$full_domain")
+    fi
+done
+
+# --- Clear progress bar line ---
+echo -e "\r\033[KDone checking domains."
+
+# --- Print results ---
+echo ""
+echo "=============================="
+echo "Available Domains"
+echo "=============================="
+if [ ${#available_domains[@]} -eq 0 ]; then
+    echo "None found."
+else
+    for domain in "${available_domains[@]}"; do
+        echo "$domain"
+    done
+fi
+
+echo ""
+echo "=============================="
+echo "Registered Domains"
+echo "=============================="
+if [ ${#registered_domains[@]} -eq 0 ]; then
+    echo "None found."
+else
+    for domain in "${registered_domains[@]}"; do
+        echo "$domain"
+    done
+fi
+
+if [ ${#errors[@]} -gt 0 ]; then
+    echo ""
+    echo "=============================="
+    echo "Domains with Whois Errors"
+    echo "=============================="
+    for domain in "${errors[@]}"; do
+        echo "$domain"
+    done
+fi
+
+# --- Export output if specified ---
+if [ -n "$output_format" ]; then
+    outfile="${domain_base}.${output_format}"
+    case "$output_format" in
+        json)
+            {
+                echo "{"
+                echo '  "available": ['
+                for i in "${!available_domains[@]}"; do
+                    printf '    "%s"%s\n' "${available_domains[$i]}" "$( [ $i -lt $((${#available_domains[@]} - 1)) ] && echo "," )"
+                done
+                echo "  ],"
+                echo '  "registered": ['
+                for i in "${!registered_domains[@]}"; do
+                    printf '    "%s"%s\n' "${registered_domains[$i]}" "$( [ $i -lt $((${#registered_domains[@]} - 1)) ] && echo "," )"
+                done
+                echo "  ],"
+                echo '  "errors": ['
+                for i in "${!errors[@]}"; do
+                    printf '    "%s"%s\n' "${errors[$i]}" "$( [ $i -lt $((${#errors[@]} - 1)) ] && echo "," )"
+                done
+                echo "  ]"
+                echo "}"
+            } > "$outfile"
+            ;;
+        csv)
+            {
+                echo "status,domain"
+                for domain in "${available_domains[@]}"; do echo "available,$domain"; done
+                for domain in "${registered_domains[@]}"; do echo "registered,$domain"; done
+                for domain in "${errors[@]}"; do echo "error,$domain"; done
+            } > "$outfile"
+            ;;
+        yaml)
+            {
+                echo "available:"
+                for domain in "${available_domains[@]}"; do echo "  - \"$domain\""; done
+                echo "registered:"
+                for domain in "${registered_domains[@]}"; do echo "  - \"$domain\""; done
+                echo "errors:"
+                for domain in "${errors[@]}"; do echo "  - \"$domain\""; done
+            } > "$outfile"
+            ;;
+        toml)
+            {
+                echo "[available]"
+                for i in "${!available_domains[@]}"; do echo "d$i = \"${available_domains[$i]}\""; done
+                echo
+                echo "[registered]"
+                for i in "${!registered_domains[@]}"; do echo "d$i = \"${registered_domains[$i]}\""; done
+                echo
+                echo "[errors]"
+                for i in "${!errors[@]}"; do echo "d$i = \"${errors[$i]}\""; done
+            } > "$outfile"
+            ;;
+    esac
+    echo -e "\nResults exported to: $outfile"
+fi
