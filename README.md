@@ -1,6 +1,6 @@
 # freedot-cli
 
-**freedot** is a lightweight, fast, and scriptable CLI tool to check domain availability across hundreds of TLDs — with filters, progress bar, output formats, and optional exports.
+**freedot** is a lightweight, fast, and scriptable CLI tool to check domain availability across hundreds of TLDs — with filters, progress bar, export formats, and optional exports. It supports Linux and macOS with a smooth UX and Bash/Zsh completions.
 
 ---
 
@@ -9,12 +9,14 @@
 - ✅ Check availability of a base domain (e.g., `mybrand`) across many TLDs
 - ✅ Filter by:
   - Category (`--category`)
-  - TLD length (`--tld-length`)
-- ✅ Export results as `json`, `csv`, `yaml`, or `toml`
-- ✅ Progress bar + colored output
-- ✅ Works on macOS and Linux
-- ✅ Bash + Zsh completion support
-- ✅ Includes a manual page (`man 1 freedot`)
+  - TLD length (`--tld-length`) using `=`, `>=`, or `<=`
+- ✅ Live TLD list pulled directly from GitHub
+- ✅ Export results to `json`, `csv`, `yaml`, or `toml`
+- ✅ Real-time progress bar with color
+- ✅ Bash + Zsh autocompletion support
+- ✅ Man page included
+- ✅ Works on Linux & macOS
+- ✅ Install dependencies with `--install-deps`
 
 ---
 
@@ -56,9 +58,13 @@ freedot --version
 
 ---
 
-## 📁 `ext.txt` Format
+## 🔗 TLD Source
 
-This is a CSV file (included) used as the TLD source:
+`freedot` pulls the latest `ext.txt` from GitHub every time it's run:
+
+📄 https://github.com/samsonzone/freedot-cli/blob/main/ref/ext.txt
+
+Format:
 
 ```
 tld,usage
@@ -66,10 +72,9 @@ com,general
 net,general
 io,tech
 ai,tech
-...
 ```
 
-Use `--list` to view all categories.
+Use `--list` to view available usage categories.
 
 ---
 
@@ -83,13 +88,13 @@ source completions/freedot.bash
 Or install permanently:
 
 ```bash
-cp completions/freedot.bash /etc/bash_completion.d/
+sudo cp completions/freedot.bash /etc/bash_completion.d/
 ```
 
 ### Zsh
 
 ```bash
-cp completions/_freedot /usr/local/share/zsh/site-functions/
+sudo cp completions/_freedot /usr/local/share/zsh/site-functions/
 autoload -Uz compinit && compinit
 ```
 
@@ -113,13 +118,22 @@ gzip -c man/freedot.1 > /usr/share/man/man1/freedot.1.gz
 
 - `whois`
 - `dig` (from `dnsutils` / `bind-utils`)
-- `timeout` (from `coreutils`)
+- `timeout` (from `coreutils` or `gtimeout` on macOS)
 
-To install required tools on Linux:
+To install required tools:
 
 ```bash
 freedot --install-deps
 ```
+
+---
+
+## 🆕 Changelog
+
+### v1.0.1
+- 🛠 Fixed TLD length filtering logic for Bash compatibility on Ubuntu/macOS
+- 🌐 Automatically pulls `ext.txt` from GitHub instead of relying on local file
+- 📦 Minor cleanup and help/UX updates
 
 ---
 
@@ -131,4 +145,4 @@ MIT
 
 ## 🧑‍💻 Author
 
-Made with ☕ and domain dreams by [samsonzone](https://github.com/samsonzone).
+Made with ☕ and domain dreams by [@samsonzone](https://github.com/samsonzone)
