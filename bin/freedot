@@ -9,7 +9,6 @@ output_format=""
 install_deps=false
 version="1.0.2"
 
-
 # --- Download ext.txt from GitHub ---
 EXT_FILE_URL="https://raw.githubusercontent.com/samsonzone/freedot-cli/main/ref/ext.txt"
 EXT_FILE="$(mktemp)"
@@ -17,6 +16,7 @@ curl -sSfL "$EXT_FILE_URL" -o "$EXT_FILE" || {
     echo "Error: Failed to download ext.txt from GitHub."
     exit 1
 }
+
 # Handle self-update
 if [[ "$1" == "self-update" ]]; then
     echo "🔄 Updating freedot from GitHub..."
@@ -38,36 +38,17 @@ if [[ "$1" == "self-update" ]]; then
     echo "✅ freedot updated to $(freedot --version)"
     exit 0
 fi
-# Handle --version early
-if [[ "$1" == "--version" ]]; then
-    echo "freedot version $version"
-    exit 0
-fi
 
 # --- Parse args ---
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        -c|--category)
-            shift
-            category_filter="$1"
-            ;;
-        -x|--tld-length)
-            shift
-            length_filter="$1"
-            ;;
-        -l|--list)
-            show_list=true
-            ;;
-        -h|--help)
-            show_help=true
-            ;;
-        -o|--output-format)
-            shift
-            output_format="$1"
-            ;;
-        --install-deps)
-            install_deps=true
-            ;;
+        -c|--category) shift; category_filter="$1" ;;
+        -x|--tld-length) shift; length_filter="$1" ;;
+        -l|--list) show_list=true ;;
+        -h|--help) show_help=true ;;
+        -o|--output-format) shift; output_format="$1" ;;
+        --install-deps) install_deps=true ;;
+        --version) echo "freedot version $version"; exit 0 ;;
         -*)
             echo "Unknown option: $1"
             exit 1
@@ -84,24 +65,6 @@ while [[ $# -gt 0 ]]; do
     shift
 done
 
-SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-
-# --- Install Dependencies (Linux Only) ---
-if $install_deps; then
-    echo "Installing dependencies..."
-    if command -v apt &>/dev/null; then
-        sudo apt update && sudo apt install -y whois dnsutils coreutils
-    elif command -v yum &>/dev/null; then
-        sudo yum install -y whois bind-utils coreutils
-    elif command -v dnf &>/dev/null; then
-        sudo dnf install -y whois bind-utils coreutils
-    else
-        echo "Unsupported package manager. Please install whois, dig, and coreutils manually."
-    fi
-    exit 0
-fi
-
-# --- Help message ---
 if $show_help; then
     echo "Usage: $0 domain_base [options]"
     echo ""
@@ -111,14 +74,15 @@ if $show_help; then
     echo "  -l, --list                      List all available categories"
     echo "  -o, --output-format <format>   Export results to file (json, csv, yaml, toml)"
     echo "  -h, --help                      Show this help message and exit"
-    echo "  --install-deps                 Install whois, dig, and timeout for Linux"
+    echo "  --install-deps                  Install whois, dig, and timeout for Linux"
+    echo "  --version                       Show tool version"
+    echo "  self-update                     Update freedot from the GitHub repo"
     echo ""
     echo "Examples:"
     echo "  $0 mysite"
     echo "  $0 mysite -c general"
-    echo "  $0 mysite -x "<=3" -o json"
+    echo "  $0 mysite -x \"<=3\" -o json"
     echo "  $0 --list"
-    echo "  self-update                    Update freedot from the GitHub repo"
     exit 0
 fi
 
