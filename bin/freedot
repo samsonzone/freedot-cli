@@ -6,11 +6,6 @@
 # License: MIT
 # Created: 2025
 # Repository: https://github.com/samsonzone/freedot-cli
-#
-# Description:
-#   Check domain availability across TLDs using WHOIS and DNS.
-#   Supports filters (category, TLD length), progress bars, export formats, and
-#   Linux/macOS compatibility with autocompletion and man page.
 # ------------------------------------------------------------------------------
 
 domain_base=""
@@ -68,8 +63,14 @@ while [[ $# -gt 0 ]]; do
     shift
 done
 
-SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-EXT_FILE="$SCRIPT_DIR/ext.txt"
+# --- Download ext.txt from GitHub ---
+EXT_FILE_URL="https://raw.githubusercontent.com/samsonzone/freedot-cli/main/ref/ext.txt"
+EXT_FILE="$(mktemp)"
+
+curl -sSfL "$EXT_FILE_URL" -o "$EXT_FILE" || {
+    echo "Error: Failed to download ext.txt from GitHub."
+    exit 1
+}
 
 # --- Install Dependencies (Linux Only) ---
 if $install_deps; then
@@ -104,6 +105,7 @@ if $show_help; then
     echo "  $0 mysite -c general"
     echo "  $0 mysite -x \"<=3\" -o json"
     echo "  $0 --list"
+    rm -f "$EXT_FILE"
     exit 0
 fi
 
@@ -111,18 +113,16 @@ fi
 if [ -n "$output_format" ]; then
     if [[ ! "$output_format" =~ ^(json|csv|yaml|toml)$ ]]; then
         echo "Error: Invalid output format. Choose from: json, csv, yaml, toml"
+        rm -f "$EXT_FILE"
         exit 1
     fi
 fi
 
 # --- Show list of categories and exit ---
 if $show_list; then
-    if [ ! -f "$EXT_FILE" ]; then
-        echo "Error: $EXT_FILE not found."
-        exit 1
-    fi
     echo "Available TLD usage categories:"
     tail -n +2 "$EXT_FILE" | awk -F',' 'tolower($2) != "" { gsub(/ /, "", $2); print tolower($2) }' | sort -u
+    rm -f "$EXT_FILE"
     exit 0
 fi
 
@@ -130,11 +130,7 @@ fi
 if [ -z "$domain_base" ]; then
     echo "Error: Missing domain_base."
     echo "Use -h or --help for usage."
-    exit 1
-fi
-
-if [ ! -f "$EXT_FILE" ]; then
-    echo "Error: $EXT_FILE not found."
+    rm -f "$EXT_FILE"
     exit 1
 fi
 
@@ -145,6 +141,7 @@ elif command -v gtimeout >/dev/null 2>&1; then
     TIMEOUT_CMD="gtimeout"
 else
     echo "Error: timeout or gtimeout not found. On macOS, run: brew install coreutils"
+    rm -f "$EXT_FILE"
     exit 1
 fi
 
@@ -175,6 +172,7 @@ while IFS=',' read -r tld usage; do
         else
             echo "Invalid length filter: $length_filter"
             echo "Use formats: N, \"<=N\", or \">=N\""
+            rm -f "$EXT_FILE"
             exit 1
         fi
     fi
@@ -189,6 +187,7 @@ done < "$EXT_FILE"
 
 if [ ${#valid_tlds[@]} -eq 0 ]; then
     echo "No matching TLDs found."
+    rm -f "$EXT_FILE"
     exit 1
 fi
 
@@ -341,3 +340,6 @@ if [ -n "$output_format" ]; then
     esac
     echo -e "\nResults exported to: $outfile"
 fi
+
+# --- Clean up ---
+rm -f "$EXT_FILE"
